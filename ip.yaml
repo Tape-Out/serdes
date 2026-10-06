@@ -31,6 +31,7 @@ emit:
   - hwsrc/serdes_prbs.v
   - hwsrc/serdes_lane.v
   - hwsrc/serdes_afifo.v
+  - hwsrc/serdes_apb.v
   clock:
     port: clk
   reset:
@@ -75,11 +76,15 @@ emit:
   - K28.5 留给空闲，上层不能拿它当数据；K28.7 会与后面的符号凑出假逗号，也不要用
 tasks:
   sim:
-    desc: 码表的穷举核对，接收端逐个符号的定向核对，两条通道带频偏、带抖动的对接
+    desc: 码表的穷举核对，接收端逐个符号的定向核对，两条通道带频偏、带抖动的对接，带寄存器的通道经总线自环与对接
     run: bash htest/sim.sh {{out}}
+  mut:
+    desc: 在带寄存器的那一层上逐个埋十处错，每处测试都要红
+    run: bash htest/mut.sh {{out}}
 test:
   upstream:
   - { name: sim, task: sim, timeout: 600 }
+  - { name: mut, task: mut, timeout: 600 }
 targets:
   foreign:
     driver: foreign

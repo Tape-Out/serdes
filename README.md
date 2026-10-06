@@ -33,6 +33,26 @@ A lane sends and receives 10-bit symbols, most significant code bit first. Each 
 
 Everything is in the one clock domain. `serdes_afifo` is a Gray-pointer FIFO for the bytes when the logic above the lane runs on another clock.
 
+## Registers of `serdes_apb`
+
+`serdes_apb` is the lane behind an APB4 slave with no wait states. The bus is on `pclk` and the line on `lclk`, which need not be related: bytes cross through two `serdes_afifo` of sixteen entries, the quasi-static controls through two flops, and the counters are captured as a group on the line side when asked for and read once the acknowledge is back.
+
+| Offset | Name | Access | Meaning |
+|:--:|:--:|:--:|:--:|
+| `0x00` | `ID` | ro | `0x53524431`, "SRD1" |
+| `0x04` | `CTRL` | rw | bit 0 `EN`, the line side is held in reset while it is 0; 1 `LOOP`; 2 `PRBS_TX`; 3 `PRBS_RX`; 8 `IE`, interrupt while the receive queue holds a byte |
+| `0x08` | `CMD` | wo | write 1: bit 0 flips one bit on the line, 1 zeroes the counters and `RX_OVER`, 2 captures the counters |
+| `0x0C` | `STAT` | ro | bit 0 `ALIGNED`, 1 `LOCKED`, 2 `TX_FULL`, 3 `RX_VALID`, 4 `RX_OVER`, the receive queue was full and bytes were dropped, 5 `BUSY`, a capture is on its way |
+| `0x10` | `TX` | wo | bits 7:0 the byte, bit 8 K; dropped if the queue is full |
+| `0x14` | `RX` | ro | bits 7:0 the byte, 8 K, 9 the symbol had an error, 31 valid; a read takes one |
+| `0x18` | `N_SYM` | ro | symbols received, as of the last capture |
+| `0x1C` | `N_BAD` | ro | 31:16 disparity errors, 15:0 code errors |
+| `0x20` | `N_REALIGN` | ro | realignments |
+| `0x24` | `N_PRBS_BYTE` | ro | PRBS bytes checked |
+| `0x28` | `N_PRBS_ERR` | ro | PRBS bits that did not match |
+
+With `PRBS_RX` set the received bytes are only checked and do not enter the receive queue.
+
 K28.5 is reserved for idle. K28.7 followed by some symbols forms a false comma across the boundary and should not be sent either. The other K codes (K28.0 to K28.4, K28.6, K23.7, K27.7, K29.7, K30.7) are free for framing.
 
 ## Testing
@@ -47,7 +67,9 @@ $ ran test serdes
 
 `htest/tb_lane.v` joins two lanes whose clocks differ by 600 ppm, through lines that add up to 6 ns of random jitter to every edge against a 10 ns sampling interval. It sends 3,000 random symbols each way with gaps and compares them one by one, runs PRBS both ways with no error, flips a line bit eight times at different places in a symbol and expects each one counted without losing lock, cuts the line and expects the receiver to unlock and then relock on a comma, and runs both lanes in loopback.
 
-Twelve single-line mutations of the design each fail one of the benches.
+`htest/tb_apb.v` drives two `serdes_apb` over their buses, with four unrelated clocks: loopback, the PRBS counters with an injected error and a clear, the two joined in both directions, a receive queue left to overflow, the interrupt, and `EN` taken away.
+
+Twelve single-line mutations of the lane each fail one of the benches. `htest/mut.sh` plants ten faults in `serdes_apb`, one at a time, and `ran test` requires `tb_apb` to fail on each.
 
 ## License
 
