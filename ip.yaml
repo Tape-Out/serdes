@@ -1,0 +1,85 @@
+name: serdes
+version: 0.1.0
+spec: '0.1'
+kind: ip
+lang: verilog
+identity:
+  slug: serdes-tapeout
+  display_name: Digital SerDes lane
+  summary: 'An all-digital serial link over two single-ended pins: 8b/10b coding, a receiver that oversamples four times and recovers timing from the data, comma alignment and a PRBS15 checker.'
+  category: interface
+  subcategories:
+  - serdes
+  ip_family: serdes
+  integration_profile: []
+  maturity: simulated
+contract:
+  version: 1
+  ctrl:
+    shape: none
+    aw: 32
+    dw: 32
+emit:
+- kind: foreign
+  lang: verilog
+  top: serdes_lane
+  rtl:
+  - hwsrc/serdes_enc8b10b.v
+  - hwsrc/serdes_dec8b10b.v
+  - hwsrc/serdes_tx.v
+  - hwsrc/serdes_rx.v
+  - hwsrc/serdes_prbs.v
+  - hwsrc/serdes_lane.v
+  - hwsrc/serdes_afifo.v
+  clock:
+    port: clk
+  reset:
+    port: rst_n
+    active: low
+    sync: false
+  ports:
+  - endpoint: line
+    kind: physical
+    type: SerdesLine
+    map:
+      tx: tx
+      rx: rx
+  - endpoint: lane
+    kind: physical
+    type: SerdesLane
+    map:
+      loopback: loopback
+      prbsTx: prbs_tx
+      prbsRx: prbs_rx
+      inject: inject
+      clear: clear
+      txData: tx_data
+      txK: tx_k
+      txValid: tx_valid
+      txReady: tx_ready
+      rxData: rx_data
+      rxK: rx_k
+      rxErr: rx_err
+      rxValid: rx_valid
+      aligned: aligned
+      locked: locked
+      nSym: n_sym
+      nCode: n_code
+      nDisp: n_disp
+      nRealign: n_realign
+      nPrbsByte: n_prbs_byte
+      nPrbsErr: n_prbs_err
+  limits:
+  - 线速率是 clk 的四分之一；两端时钟各自独立，频偏靠接收端一拍一拍地跟
+  - 线路是单端的两根脚，没有差分驱动与均衡，只适合板内或短线
+  - K28.5 留给空闲，上层不能拿它当数据；K28.7 会与后面的符号凑出假逗号，也不要用
+tasks:
+  sim:
+    desc: 码表的穷举核对，接收端逐个符号的定向核对，两条通道带频偏、带抖动的对接
+    run: bash htest/sim.sh {{out}}
+test:
+  upstream:
+  - { name: sim, task: sim, timeout: 600 }
+targets:
+  foreign:
+    driver: foreign
