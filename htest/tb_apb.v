@@ -42,7 +42,7 @@ module tb_apb;
   localparam EN = 32'h1, LOOP = 32'h2, PTX = 32'h4, PRX = 32'h8, IE = 32'h100;
 
   reg pa = 1'b0, pb = 1'b0, la = 1'b0, lb = 1'b0;
-  reg rst_n = 1'b0;
+  reg rst_n = 1'b1;
   always #10.000 pa = ~pa;
   always #11.300 pb = ~pb;
   always #5.000 la = ~la;
@@ -70,7 +70,8 @@ module tb_apb;
   integer errs = 0;
   task check(input ok, input string what);
     begin
-      if (!ok) begin
+      // 判据里有 X 也算不过：if (!ok) 遇到 X 是不进分支的
+      if (ok !== 1'b1) begin
         errs = errs + 1;
         $display("FAIL %0s（%0t）", what, $time);
       end
@@ -129,6 +130,7 @@ module tb_apb;
   endfunction
 
   initial begin
+    #1 rst_n = 1'b0;
     repeat (5) @(posedge pa);
     rst_n = 1'b1;
     repeat (5) @(posedge pa);
